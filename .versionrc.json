@@ -3,6 +3,22 @@
     {
       "filename": "mod.ts",
       "updater": ".ts_module_version_updater.js"
+    },
+    {
+      "filename": "README.md",
+      "updater": ".import_url_updater.js"
+    },
+    {
+      "filename": "examples/resource_closing.ts",
+      "updater": ".import_url_updater.js"
+    },
+    {
+      "filename": "examples/abort_signal.ts",
+      "updater": ".import_url_updater.js"
+    },
+    {
+      "filename": "examples/simple.ts",
+      "updater": ".import_url_updater.js"
     }
   ],
   "scripts": {
