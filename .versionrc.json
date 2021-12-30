@@ -1,0 +1,11 @@
+{
+  "bumpFiles": [
+    {
+      "filename": "mod.ts",
+      "updater": ".ts_module_version_updater.js"
+    }
+  ],
+  "scripts": {
+    "postchangelog": "make apply-format"
+  }
+}
