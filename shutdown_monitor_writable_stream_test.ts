@@ -182,4 +182,46 @@ for (const readableCapacity of [1, 10, 20]) {
   }
 }
 
-// TOOO: test for return value of pipeTo
+Deno.test("The promise returned from pipeTo()'s resolves when the destination closes", async () => {
+  let destClosed = false;
+  const monitor = new ShutdownMonitorWritableStream();
+  const monitorWriter = monitor.getWriter();
+  const dest = new WritableStream({
+    close() {
+      destClosed = true;
+    },
+  });
+  const pipe = monitor.pipeTo(dest);
+  // pipe doesn't resolve before dest is closed/errored
+  assertEquals(
+    await Promise.race([pipe.then(() => Promise.reject()), delay(0)]),
+    undefined,
+  );
+  assert(!destClosed);
+  assertEquals(await Promise.all([monitorWriter.close(), pipe]), [
+    undefined,
+    undefined,
+  ]);
+  assert(destClosed);
+});
+
+Deno.test("The promise returned from pipeTo()'s rejects when the destination aborts", async () => {
+  const monitor = new ShutdownMonitorWritableStream();
+  const dest = new WritableStream();
+  const pipe = monitor.pipeTo(dest);
+  // pipe doesn't resolve before dest is closed/errored
+  assertEquals(
+    await Promise.race([pipe.then(() => Promise.reject()), delay(0)]),
+    undefined,
+  );
+  assertEquals(
+    await Promise.race([
+      Promise.all([
+        monitor.getWriter().abort(new Error("example")),
+        pipe.catch((e) => e),
+      ]),
+      delay(0).then(() => Promise.reject("pipe did not abort")),
+    ]),
+    [undefined, new Error("example")],
+  );
+});
