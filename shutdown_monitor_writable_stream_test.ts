@@ -3,6 +3,7 @@ import {
   assertEquals,
   assertRejects,
   assertThrows,
+  deferred,
   delay,
 } from "./dev_deps.ts";
 import { ShutdownMonitorWritableStream } from "./shutdown_monitor_writable_stream.ts";
@@ -47,16 +48,18 @@ for (const beforeOrAfter of ["before", "after"] as const) {
   Deno.test(`aborting the monitor ${beforeOrAfter} pipeTo() aborts the destination`, async () => {
     const reason = new Error("example");
     const monitor = new ShutdownMonitorWritableStream();
-    const destination = new TransformStream();
+    const destinationAborted = deferred<AbortSignal>();
+    const destination = new WritableStream({
+      start(controller) {
+        destinationAborted.resolve(controller.signal);
+      },
+    });
 
-    pipeBeforeOrAfterAction({ monitor, destination }, () => {
+    await pipeBeforeOrAfterAction({ monitor, destination }, () => {
       return monitor.abort(reason);
     });
 
-    await assertRejects(
-      () => destination.readable.getReader().closed,
-      (err: unknown) => assertErrorEquals(err, reason),
-    );
+    assertErrorEquals((await destinationAborted).reason, reason);
   });
 
   Deno.test(`aborting the destination ${beforeOrAfter} pipeTo() aborts the monitor`, async () => {
