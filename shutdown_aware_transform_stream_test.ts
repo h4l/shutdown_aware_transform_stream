@@ -12,7 +12,7 @@ import {
   readableStreamFromIterable,
   unreachable,
 } from "./dev_deps.ts";
-import { consumeStream } from "./_test_utils.ts";
+import { assertErrorEquals, consumeStream } from "./_test_utils.ts";
 
 type TransformStreamOptions<I = unknown, O = unknown> =
   & Omit<ShutdownAwareTransformStreamOptions<I, O>, "transformer">
@@ -142,6 +142,98 @@ comparisonCases.forEach(({ createStream, label }) => {
       (err: unknown) => assertEquals(err, error),
     );
   });
+});
+
+const exampleError = () => new Error("example");
+const erroringTransformerCases: ReadonlyArray<
+  { label: string; failedCall: string; transformer: Transformer }
+> = [
+  {
+    label: "throws from start()",
+    failedCall: "constructor",
+    transformer: {
+      start() {
+        throw exampleError();
+      },
+    },
+  },
+  {
+    label: "returns rejected promise from start() ",
+    failedCall: "write()",
+    transformer: {
+      // deno-lint-ignore require-await
+      async start() {
+        throw exampleError();
+      },
+    },
+  },
+  {
+    label: "throws from transform()",
+    failedCall: "write()",
+    transformer: {
+      transform() {
+        throw exampleError();
+      },
+    },
+  },
+  {
+    label: "throws from flush()",
+    failedCall: "close()",
+    transformer: {
+      flush() {
+        throw exampleError();
+      },
+    },
+  },
+  {
+    label: "calls controller.error()",
+    failedCall: "close()",
+    transformer: {
+      transform(_chunk, controller) {
+        // fails in the close() call as transform() itself doesn't throw
+        controller.error(exampleError());
+      },
+    },
+  },
+];
+
+comparisonCases.forEach(({ createStream, label }) => {
+  erroringTransformerCases.forEach(
+    ({ transformer, failedCall, label: transformerLabel }) => {
+      Deno.test(`${label} becomes errored when Transformer ${transformerLabel}`, async () => {
+        const scenario = async () => {
+          // deno-lint-ignore require-await
+          const tx = await (async () => createStream({ transformer }))()
+            .catch((e) => {
+              throw new Error("constructor", { cause: e });
+            });
+          const writer = tx.writable.getWriter();
+          const ops = [
+            writer.write("foo").catch((e) => {
+              throw new Error("write()", { cause: e });
+            }),
+            writer.close().catch((e) => {
+              throw new Error("close()", { cause: e });
+            }),
+            ,
+            consumeStream(tx.readable),
+          ];
+          // await Promise.allSettled(ops.map((op) => op.catch(() => {})));
+          await Promise.allSettled(ops);
+          await Promise.all(ops); // reject with the first error
+        };
+
+        await assertRejects(
+          scenario,
+          (err: unknown) =>
+            assertErrorEquals(
+              err,
+              new Error(failedCall, { cause: exampleError() }),
+            ),
+        );
+      });
+    },
+  );
 });
 
 const transformCases: ReadonlyArray<
