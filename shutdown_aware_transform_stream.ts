@@ -23,7 +23,7 @@ export interface ShutdownAwareTransformer<I = unknown, O = unknown> {
 }
 
 export interface ShutdownAwareTransformStreamOptions<I = unknown, O = unknown> {
-  transformer: ShutdownAwareTransformer<I, O>;
+  transformer?: ShutdownAwareTransformer<I, O>;
   writableStrategy?: QueuingStrategy<I>;
   readableStrategy?: QueuingStrategy<O>;
 }
@@ -35,21 +35,17 @@ export class ShutdownAwareTransformStream<I = unknown, O = unknown>
   readonly #transformer: ShutdownAwareTransformerAdapter<I, O>;
   readonly #transformStream: TransformStream<I, O>;
   readonly #transformMonitorPipe: Promise<void>;
-  constructor(
-    transformer?: ShutdownAwareTransformer<I, O>,
-    writableStrategy?: QueuingStrategy<I>,
-    readableStrategy?: QueuingStrategy<O>,
-  ) {
+  constructor(options: ShutdownAwareTransformStreamOptions<I, O> = {}) {
     this.#monitor = new ShutdownMonitorWritableStream();
     this.#abortController = new AbortController();
     this.#transformer = new ShutdownAwareTransformerAdapter<I, O>(
       this.#abortController.signal,
-      transformer ?? {},
+      options.transformer ?? {},
     );
     this.#transformStream = new TransformStream<I, O>(
       this.#transformer,
-      writableStrategy,
-      readableStrategy,
+      options.writableStrategy,
+      options.readableStrategy,
     );
     this.#transformMonitorPipe = this.#monitor.pipeTo(
       this.#transformStream.writable,
@@ -90,6 +86,7 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
   #wrappedController: undefined | TransformStreamDefaultController<O> =
     undefined;
   #controller: undefined | ShutdownAwareTransformStreamController<O> = undefined;
+  readonly transform: Transformer<I, O>["transform"];
   constructor(
     readonly signal: AbortSignal,
     readonly transformer: ShutdownAwareTransformer<I, O>,
@@ -97,11 +94,25 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
     if (transformer.close) {
       signal.addEventListener("abort", transformer.close.bind(transformer));
     }
+    // In order to inherit the no-op transform behaviour of TransformStream,
+    // only define transform() if the wrapped transformer does.
+    if (transformer.transform) {
+      const transform = transformer.transform.bind(transformer);
+      this.transform = (
+        chunk: I,
+        _controller: TransformStreamDefaultController<O>,
+      ): void | PromiseLike<void> => {
+        assert(_controller === this.#wrappedController);
+        assert(this.#controller);
+        return transform(chunk, this.#controller);
+      };
+    }
   }
 
   start(
     controller: TransformStreamDefaultController<O>,
   ): void | PromiseLike<void> {
+    this.#wrappedController = controller;
     this.#controller = new ShutdownAwareTransformStreamDefaultController<O>(
       this.signal,
       controller,
@@ -118,14 +129,5 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
     ).finally(
       this.transformer.close && this.transformer.close.bind(this.transformer),
     );
-  }
-  transform(
-    chunk: I,
-    _controller: TransformStreamDefaultController<O>,
-  ): void | PromiseLike<void> {
-    assert(_controller === this.#wrappedController);
-    assert(this.#controller);
-    return this.transformer.transform &&
-      this.transformer.transform(chunk, this.#controller);
   }
 }
