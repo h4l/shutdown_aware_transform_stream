@@ -36,7 +36,9 @@ export class ShutdownAwareTransformStream<I = unknown, O = unknown>
   readonly #transformStream: TransformStream<I, O>;
   readonly #transformMonitorPipe: Promise<void>;
   constructor(options: ShutdownAwareTransformStreamOptions<I, O> = {}) {
-    this.#monitor = new ShutdownMonitorWritableStream();
+    this.#monitor = new ShutdownMonitorWritableStream({
+      queuingStrategy: options.writableStrategy,
+    });
     this.#abortController = new AbortController();
     this.#transformer = new ShutdownAwareTransformerAdapter<I, O>(
       this.#abortController.signal,
@@ -44,7 +46,7 @@ export class ShutdownAwareTransformStream<I = unknown, O = unknown>
     );
     this.#transformStream = new TransformStream<I, O>(
       this.#transformer,
-      options.writableStrategy,
+      undefined,
       options.readableStrategy,
     );
     this.#transformMonitorPipe = this.#monitor.pipeTo(
@@ -104,7 +106,7 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
       ): void | PromiseLike<void> => {
         assert(_controller === this.#wrappedController);
         assert(this.#controller);
-        return transform(chunk, this.#controller);
+        return transform(chunk, this.#controller!);
       };
     }
   }
@@ -125,7 +127,7 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
     assert(_controller === this.#wrappedController);
     assert(this.#controller);
     return Promise.resolve(
-      this.transformer.flush && this.transformer.flush(this.#controller),
+      this.transformer.flush && this.transformer.flush(this.#controller!),
     ).finally(
       this.transformer.close && this.transformer.close.bind(this.transformer),
     );

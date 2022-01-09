@@ -163,13 +163,8 @@ comparisonCases.forEach(({ createStream, label }) => {
         Deno.test(
           `${label} respects backpressure using ${transformLabel} transform (readableCapacity: ${readableCapacity}, writableCapacity: ${writableCapacity})`,
           async () => {
-            const expectedPipelineCapacity = (
-              1 + writableCapacity + readableCapacity +
-              // The ShutdownAwareTransformStream has an additional internal stream
-              // compared to a regular TransformStream, so it will hold 1 extra
-              // chunk in flight.
-              (label === "ShutdownAwareTransformStream" ? 1 : 0)
-            );
+            const expectedPipelineCapacity = 1 + writableCapacity +
+              readableCapacity;
             let pullCount = 0;
             const src = new ReadableStream({
               pull(controller) {

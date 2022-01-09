@@ -162,22 +162,29 @@ for (const readableCapacity of [1, 10, 20]) {
           return controller.enqueue(42);
         },
       });
-      const monitor = new ShutdownMonitorWritableStream();
-      const dest = new TransformStream(undefined, {
-        highWaterMark: writableCapacity,
-      }, {
-        highWaterMark: readableCapacity,
+      const monitor = new ShutdownMonitorWritableStream({
+        queuingStrategy: { highWaterMark: writableCapacity },
       });
+      const dest = new TransformStream(
+        undefined,
+        // Note that the queue of the monitored writable is never populated
+        // because of the way the monitor proxies the monitored stream's write()
+        // method. (See the comment in ShutdownMonitorWritableStream's
+        // UnderlyingSink write() method.)
+        { highWaterMark: 9999 /* large value that won't actually be used */ },
+        { highWaterMark: readableCapacity },
+      );
       monitor.pipeTo(dest.writable);
       src.pipeThrough({ writable: monitor, readable: dest.readable });
       await delay(0);
-      // 1 for src, 1 for monitor + the dest's combined capacity
-      assertEquals(pullCount, 1 + 1 + writableCapacity + readableCapacity);
+      // 1 for src + the dest's combined capacity (the writable side queue of
+      // the internal transform stream is not populated)
+      assertEquals(pullCount, 1 + writableCapacity + readableCapacity);
 
       const reader = dest.readable.getReader();
       for (let i = 0; i < 10; ++i) reader.read();
       await delay(0);
-      assertEquals(pullCount, 10 + 1 + 1 + writableCapacity + readableCapacity);
+      assertEquals(pullCount, 10 + 1 + writableCapacity + readableCapacity);
     });
   }
 }
@@ -223,5 +230,21 @@ Deno.test("The promise returned from pipeTo()'s rejects when the destination abo
       delay(0).then(() => Promise.reject("pipe did not abort")),
     ]),
     [undefined, new Error("example")],
+  );
+});
+
+Deno.test("The monitor's write() rejects when the destination's write fails", async () => {
+  const thrownErr = new Error("example");
+  const monitor = new ShutdownMonitorWritableStream();
+  const dest = new WritableStream({
+    write() {
+      throw thrownErr;
+    },
+  });
+  monitor.pipeTo(dest);
+  const writer = monitor.getWriter();
+  await assertRejects(
+    () => writer.write("foo"),
+    (err: unknown) => assertErrorEquals(err, thrownErr),
   );
 });
