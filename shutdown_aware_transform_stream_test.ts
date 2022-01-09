@@ -14,6 +14,43 @@ import {
 } from "./dev_deps.ts";
 import { assertErrorEquals, consumeStream } from "./_test_utils.ts";
 
+Deno.test("type defs", () => {
+  const transformer: ShutdownAwareTransformer<string, number> = {
+    start(
+      _controller: ShutdownAwareTransformStreamController<number>,
+    ): void | PromiseLike<void> {},
+    transform(
+      _chunk: string,
+      _controller: ShutdownAwareTransformStreamController<number>,
+    ): void | PromiseLike<void> {},
+    flush(
+      _controller: ShutdownAwareTransformStreamController<number>,
+    ): void | PromiseLike<void> {},
+    close() {},
+  };
+
+  const options: ShutdownAwareTransformStreamOptions<string, number> = {
+    transformer,
+    writableStrategy: {
+      highWaterMark: 1,
+      size(_chunk: string) {
+        return 1;
+      },
+    },
+    readableStrategy: {
+      highWaterMark: 1,
+      size(_chunk: number) {
+        return 1;
+      },
+    },
+  };
+
+  const _transform1 = new ShutdownAwareTransformStream();
+  const _transform2: ShutdownAwareTransformStream<string, number> =
+    new ShutdownAwareTransformStream(options);
+  const _transform3 = new ShutdownAwareTransformStream<string, number>(options);
+});
+
 type TransformStreamOptions<I = unknown, O = unknown> =
   & Omit<ShutdownAwareTransformStreamOptions<I, O>, "transformer">
   & { transformer?: Transformer<I, O> };
