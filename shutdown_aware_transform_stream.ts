@@ -85,17 +85,25 @@ class ShutdownAwareTransformStreamDefaultController<O>
 }
 
 class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
+  #signal: AbortSignal;
+  #transformer: ShutdownAwareTransformer<I, O>;
   #wrappedController: undefined | TransformStreamDefaultController<O> =
     undefined;
   #controller: undefined | ShutdownAwareTransformStreamController<O> = undefined;
   readonly transform: Transformer<I, O>["transform"];
-  constructor(
-    readonly signal: AbortSignal,
-    readonly transformer: ShutdownAwareTransformer<I, O>,
-  ) {
-    if (transformer.close) {
-      signal.addEventListener("abort", transformer.close.bind(transformer));
-    }
+  #closeTransformerIfNotAlreadyClosed = (() => {
+    let closeCalled = false;
+    return () => {
+      if (!closeCalled) {
+        closeCalled = true;
+        this.#transformer.close && this.#transformer.close();
+      }
+    };
+  })();
+  constructor(signal: AbortSignal, transformer: ShutdownAwareTransformer<I, O>) {
+    this.#signal = signal;
+    this.#transformer = transformer;
+    signal.addEventListener("abort", this.#closeTransformerIfNotAlreadyClosed);
     // In order to inherit the no-op transform behaviour of TransformStream,
     // only define transform() if the wrapped transformer does.
     if (transformer.transform) {
@@ -116,20 +124,22 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
   ): void | PromiseLike<void> {
     this.#wrappedController = controller;
     this.#controller = new ShutdownAwareTransformStreamDefaultController<O>(
-      this.signal,
+      this.#signal,
       controller,
     );
-    return this.transformer.start && this.transformer.start(this!.#controller);
+    return this.#transformer.start && this.#transformer.start(this.#controller);
   }
   flush(
     _controller: TransformStreamDefaultController<O>,
   ): void | PromiseLike<void> {
     assert(_controller === this.#wrappedController);
     assert(this.#controller);
+    // If flush() throws synchronously, the stream errors and close() is called
+    // via this.#signal. Note that if flush calls controller.error() and returns
+    // synchronously then close() will be called before the underlying transform
+    // stream becomes errored.
     return Promise.resolve(
-      this.transformer.flush && this.transformer.flush(this.#controller!),
-    ).finally(
-      this.transformer.close && this.transformer.close.bind(this.transformer),
-    );
+      this.#transformer.flush && this.#transformer.flush(this.#controller!),
+    ).then(this.#closeTransformerIfNotAlreadyClosed);
   }
 }
