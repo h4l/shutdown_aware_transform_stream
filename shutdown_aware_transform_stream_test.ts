@@ -321,3 +321,258 @@ comparisonCases.forEach(({ createStream, label }) => {
     }
   });
 });
+
+Deno.test("close() is called after sync flush() when stream closes normally", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      flush() {
+        events.push("flush()");
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.all([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["flush()", "close()"]);
+});
+
+Deno.test("close() is called after async flush() when stream closes normally", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      async flush() {
+        events.push("flush() start");
+        await delay(0);
+        events.push("flush() end");
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.all([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["flush() start", "flush() end", "close()"]);
+});
+
+Deno.test("close() is called after sync flush() throws", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      flush() {
+        events.push("flush() threw");
+        throw new Error("flush() failed");
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["flush() threw", "close()"]);
+});
+
+Deno.test("close() is called after sync flush() calls controller.error()", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      flush(controller) {
+        events.push("flush() calls controller.error()");
+        controller.error(new Error("flush() failed"));
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["flush() calls controller.error()", "close()"]);
+});
+
+Deno.test("close() is called after async flush() rejects", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      async flush() {
+        events.push("flush() start");
+        await delay(0);
+        events.push("flush() failed");
+        throw new Error("flush() failed");
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["flush() start", "flush() failed", "close()"]);
+});
+
+Deno.test("close() is called after async flush() resolves and calls controller.error()", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      async flush(controller) {
+        events.push("flush() start");
+        await delay(0);
+        events.push("flush() calls controller.error()");
+        controller.error(new Error("flush() failed"));
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([
+    tx.writable.getWriter().close(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, [
+    "flush() start",
+    "flush() calls controller.error()",
+    "close()",
+  ]);
+});
+
+Deno.test("close() is called after start() rejects", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      // deno-lint-ignore require-await
+      async start() {
+        events.push("start()");
+        throw new Error("start() failed");
+      },
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([tx.readable.getReader().closed]);
+  assertEquals(events, ["start()", "close()"]);
+});
+
+Deno.test("close() is called after the stream is aborted", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  await Promise.allSettled([
+    tx.writable.getWriter().abort(),
+    tx.readable.getReader().closed,
+  ]);
+  assertEquals(events, ["close()"]);
+});
+
+Deno.test("close() is called after the stream is cancelled", async () => {
+  const events: string[] = [];
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      close() {
+        events.push("close()");
+      },
+    },
+  });
+  const reader = tx.readable.getReader();
+  await Promise.allSettled([
+    reader.cancel(),
+    reader.closed,
+    tx.writable.getWriter().closed,
+  ]);
+  assertEquals(events, ["close()"]);
+});
+
+Deno.test("abort signal triggers after the readable side is cancelled", async () => {
+  const events: string[] = [];
+  const error = new Error("example");
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      start(controller) {
+        controller.signal.addEventListener("abort", () => {
+          events.push("abort signal");
+        });
+      },
+    },
+  });
+  const reader = tx.readable.getReader();
+  await Promise.all([
+    reader.cancel(error),
+    reader.closed,
+    assertRejects(
+      () => tx.writable.getWriter().closed,
+      (err: unknown) => assertErrorEquals(err, error),
+    ),
+  ]);
+  assertEquals(events, ["abort signal"]);
+});
+
+Deno.test("abort signal triggers after the stream throws during use", async () => {
+  const events: string[] = [];
+  const error = new Error("example");
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      start(controller) {
+        controller.signal.addEventListener("abort", () => {
+          events.push("abort signal");
+        });
+      },
+      transform() {
+        events.push("transform()");
+        throw error;
+      },
+    },
+  });
+  await Promise.all([
+    assertRejects(
+      () => tx.writable.getWriter().write("foo"),
+      (err: unknown) => assertErrorEquals(err, error),
+    ),
+    assertRejects(
+      () => tx.readable.getReader().read(),
+      (err: unknown) => assertErrorEquals(err, error),
+    ),
+  ]);
+  assertEquals(events, ["transform()", "abort signal"]);
+});
+
+Deno.test("abort signal triggers after the writable side is aborted", async () => {
+  const events: string[] = [];
+  const error = new Error("example");
+  const tx = new ShutdownAwareTransformStream({
+    transformer: {
+      start(controller) {
+        controller.signal.addEventListener("abort", () => {
+          events.push("abort signal");
+        });
+      },
+    },
+  });
+  await Promise.all([
+    tx.writable.getWriter().abort(error),
+    assertRejects(
+      () => tx.readable.getReader().read(),
+      (err: unknown) => assertErrorEquals(err, error),
+    ),
+  ]);
+  assertEquals(events, ["abort signal"]);
+});
