@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "https://deno.land/x/shutdown_aware_transform_stream@unpublished/": "./"
+  }
+}

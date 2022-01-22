@@ -40,8 +40,12 @@ apply-format:
 .PHONY: auto-format-files
 
 test:
-> deno test
+> deno test $(shell find . -name '*_test.ts' -not -name examples_test.ts)
 .PHONY: test
+
+test-examples:
+> deno test --allow-run=deno examples_test.ts
+.PHONY: test-examples
 
 ensure-licensed:
 # https://deno.land/manual/contributing/style_guide#copyright-headers
