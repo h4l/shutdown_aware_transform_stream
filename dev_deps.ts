@@ -1,4 +1,4 @@
-// Copyright 2021 Hal Blackburn. All rights reserved. MIT license.
+// Copyright 2021-2022 Hal Blackburn. All rights reserved. MIT license.
 export {
   assert,
   assertEquals,

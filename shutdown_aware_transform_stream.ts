@@ -1,3 +1,4 @@
+// Copyright 2021-2022 Hal Blackburn. All rights reserved. MIT license.
 import { assert } from "./deps.ts";
 import { ShutdownMonitorWritableStream } from "./shutdown_monitor_writable_stream.ts";
 
@@ -89,7 +90,8 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
   #transformer: ShutdownAwareTransformer<I, O>;
   #wrappedController: undefined | TransformStreamDefaultController<O> =
     undefined;
-  #controller: undefined | ShutdownAwareTransformStreamController<O> = undefined;
+  #controller: undefined | ShutdownAwareTransformStreamController<O> =
+    undefined;
   readonly transform: Transformer<I, O>["transform"];
   #closeTransformerIfNotAlreadyClosed = (() => {
     let closeCalled = false;
@@ -100,7 +102,10 @@ class ShutdownAwareTransformerAdapter<I, O> implements Transformer<I, O> {
       }
     };
   })();
-  constructor(signal: AbortSignal, transformer: ShutdownAwareTransformer<I, O>) {
+  constructor(
+    signal: AbortSignal,
+    transformer: ShutdownAwareTransformer<I, O>,
+  ) {
     this.#signal = signal;
     this.#transformer = transformer;
     signal.addEventListener("abort", this.#closeTransformerIfNotAlreadyClosed);

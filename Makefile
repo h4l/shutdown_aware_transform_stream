@@ -12,7 +12,7 @@ ifeq ($(origin .RECIPEPREFIX), undefined)
 endif
 .RECIPEPREFIX = >
 
-LICENSE_HEADER = // Copyright 2021 Hal Blackburn. All rights reserved. MIT license.
+LICENSE_HEADER = // Copyright 2021-2022 Hal Blackburn. All rights reserved. MIT license.
 
 help:
 > echo "Available targets:"
@@ -44,6 +44,7 @@ test:
 .PHONY: test
 
 ensure-licensed:
+# https://deno.land/manual/contributing/style_guide#copyright-headers
 > UNLICENSED="$$(\
   find . -name '*.ts' -not -path './examples/*' -exec \
     grep -FL '$(LICENSE_HEADER)' {} + \
