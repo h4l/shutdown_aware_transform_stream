@@ -1,5 +1,9 @@
 # `shutdown_aware_transform_stream`
 
+![CI status](https://github.com/h4l/shutdown_aware_transform_stream/actions/workflows/ci.yml/badge.svg?branch=main)
+[![deno.land](https://img.shields.io/badge/available%20on-deno.land/x-lightgrey.svg?logo=deno&labelColor=black)](https://deno.land/x/shutdown_aware_transform_stream@1.0.0/)
+[![API Docs](https://doc.deno.land/badge.svg)](https://doc.deno.land/https://deno.land/x/shutdown_aware_transform_stream@1.0.0/mod.ts)
+
 A [Deno] module providing `ShutdownAwareTransformStream`: an augmented
 [Web Streams] `TransformStream` that enables Transformers holding resources
 requiring explicit cleanup to automatically perform cleanup steps when the
