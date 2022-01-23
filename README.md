@@ -28,7 +28,7 @@ aborted. (`WritableStream` Controllers also provide this, but standard
 // from examples/simple.ts
 import {
   ShutdownAwareTransformStream,
-} from "https://deno.land/x/shutdown_aware_transform_stream@unpublished/mod.ts";
+} from "https://deno.land/x/shutdown_aware_transform_stream@1.0.0/mod.ts";
 
 const transform = new ShutdownAwareTransformStream<number, string>({
   transformer: {

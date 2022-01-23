@@ -3,7 +3,7 @@
  */
 import {
   ShutdownAwareTransformStream,
-} from "https://deno.land/x/shutdown_aware_transform_stream@unpublished/mod.ts";
+} from "https://deno.land/x/shutdown_aware_transform_stream@1.0.0/mod.ts";
 import { runExamples } from "./_example_runner.ts";
 
 function createExampleTransform() {
