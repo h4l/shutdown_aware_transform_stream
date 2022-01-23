@@ -79,12 +79,12 @@ The module is available from
 ```ts
 import {
   ShutdownAwareTransformStream,
-} from "https://deno.land/x/shutdown_aware_transform_stream@unpublished/mod.ts";
+} from "https://deno.land/x/shutdown_aware_transform_stream@1.0.0/mod.ts";
 import type {
   ShutdownAwareTransformer,
   ShutdownAwareTransformStreamController,
   ShutdownAwareTransformStreamOptions,
-} from "https://deno.land/x/shutdown_aware_transform_stream@unpublished/mod.ts";
+} from "https://deno.land/x/shutdown_aware_transform_stream@1.0.0/mod.ts";
 ```
 
 ## Roadmap
