@@ -62,5 +62,5 @@ ensure-licensed:
 .SILENT: ensure-licensed
 
 bump-version:
-> npx standard-version@^9.3.2
+> npx standard-version@^9.3.2 --tag-prefix ''
 .PHONY: bump-version
