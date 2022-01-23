@@ -89,7 +89,7 @@ import type {
 
 ## Roadmap
 
-- [ ] Publish on deno.land
+- [x] Publish on deno.land
 
 ## Contributing
 
