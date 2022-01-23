@@ -50,7 +50,7 @@ someStream.pipeThrough(transform).pipeTo(otherStream);
 The [examples](./examples) directory contains complete examples:.
 
 ```console
-$ deno run --quiet --import-map import_map.json examples/simple.ts
+$ deno run --quiet examples/simple.ts
 Using transform in a stream pipeline that ends with an error:
 * dest: write(transform(1))
 * dest: write(transform(2))
